@@ -12,7 +12,7 @@ import Array exposing (Array)
 main =
     App.programWithFlags
         { init = init
-        , update = update
+        , update = updateWithStorage
         , subscriptions = subscriptions
         , view = view
         }
@@ -44,17 +44,6 @@ calculateDeath dob =
     let dobMilli = Date.toTime dob
     in (round dobMilli + 2524556160000)
 
-pizzaEntry =
-    { label = "pizzas left",  perMonth = 1.0 }
-pizzaActiveEntry =
-    { entry = pizzaEntry,  numleft = "" }
-chrisDob =
-    case Date.fromString "07-01-1996" of
-        Ok date -> date
-        Err msg -> Debug.crash("no :(")
-testModel =
-    { onboarded = True, dob = "02-04-1996", death = calculateDeath chrisDob, entries = Array.fromList [ pizzaEntry ], activeEntry = pizzaActiveEntry } ! []
-
 starterEntries =
     [ { label = "pizzas", perMonth = 0.6 }
     , { label = "phone calls home", perMonth = 2.2}
@@ -67,23 +56,37 @@ starterEntries =
     , { label = "concerts", perMonth = 0.08 }
     ] |> Array.fromList
 
-type alias Flags = { rand: Int }
+emptyModel : Model
+emptyModel =
+    { onboarded = False, dob = "", death = 0, entries = starterEntries, activeEntry = { entry = { label = "", perMonth = 0.0 }, numleft = "" } }
 
+type alias Flags = { rand: Int, savedModel: Maybe Model }
 init : Flags -> ( Model, Cmd Msg )
-init { rand } =
-    --testModel
-    --{ onboarded = False, dob = "", death = 0, entries = Array.empty, activeEntry = { entry = { label = "", perMonth = 0.0 }, numleft = "" }} ! []
-    let index = rand % (Array.length starterEntries)
-        activeEntry = case Array.get index starterEntries of
+init { rand, savedModel } =
+    let model = Maybe.withDefault emptyModel savedModel
+        index = rand % (Array.length model.entries)
+        activeEntry = case Array.get index model.entries of
                         Nothing -> Debug.crash("array index access out of bounds")
                         Just entry -> entry
-    in { onboarded = False, dob = "", death = 0, entries = starterEntries, activeEntry = { entry = activeEntry, numleft = "" } } ! []
+    in { model | activeEntry = { entry = activeEntry, numleft = "" } } ! []
 
 type Msg
     = NoOp
     | Tick Time
     | DobChange String
     | Submit
+
+port setStorage : Model -> Cmd msg
+
+updateWithStorage : Msg -> Model -> ( Model, Cmd Msg )
+updateWithStorage msg model =
+    let
+        ( newModel, cmds ) =
+            update msg model
+    in
+        ( newModel
+        , Cmd.batch [ setStorage newModel, cmds ]
+        )
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
@@ -92,7 +95,6 @@ update msg model =
             model ! []
         Tick time ->
             let activeEntry = model.activeEntry
-                asdfsadf = Debug.log "model" model
                 perMonth = activeEntry.entry.perMonth
                 death = model.death
                 numleft = numLeft death perMonth time
@@ -171,3 +173,14 @@ zeroPad numZeros str =
         in zeroPad numZeros paddedStr
     else
         str
+
+pizzaEntry =
+    { label = "pizzas left",  perMonth = 1.0 }
+pizzaActiveEntry =
+    { entry = pizzaEntry,  numleft = "" }
+chrisDob =
+    case Date.fromString "07-01-1996" of
+        Ok date -> date
+        Err msg -> Debug.crash("no :(")
+testModel =
+    { onboarded = True, dob = "02-04-1996", death = calculateDeath chrisDob, entries = Array.fromList [ pizzaEntry ], activeEntry = pizzaActiveEntry } ! []

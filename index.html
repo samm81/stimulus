@@ -15,13 +15,13 @@
 </body>
 
 <script type="text/javascript">
-//var storedState = localStorage.getItem('elm-stimulus-save');
-//var startingState = storedState ? JSON.parse(storedState) : null;
-//var todomvc = Elm.Todo.fullscreen(startingState);
-var stimulus = Elm.Stimulus.fullscreen({ rand: Math.floor( Math.random() * 100 ) });
-//todomvc.ports.setStorage.subscribe(function(state) {
-//    localStorage.setItem('elm-todo-save', JSON.stringify(state));
-//});
+var storedModel = localStorage.getItem('elm-stimulus-save');
+var startingModel = storedModel ? JSON.parse(storedModel) : null;
+var startingState = { rand: Math.floor( Math.random() * 100000 ), savedModel: startingModel }
+var stimulus = Elm.Stimulus.fullscreen(startingState);
+stimulus.ports.setStorage.subscribe(function(model) {
+    localStorage.setItem('elm-stimulus-save', JSON.stringify(model));
+});
 </script>
 
 </html>
