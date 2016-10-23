@@ -1,4 +1,4 @@
-module Stimulus exposing (..)
+port module Stimulus exposing (..)
 
 import Html exposing (..)
 import Html.Attributes exposing (..)
@@ -9,10 +9,9 @@ import Time exposing (Time, millisecond)
 import String
 import Array exposing (Array)
 
-main : Program Never
 main =
-    App.program
-        { init = emptyModel
+    App.programWithFlags
+        { init = init
         , update = update
         , subscriptions = subscriptions
         , view = view
@@ -66,13 +65,19 @@ starterEntries =
     , { label = "emails", perMonth = 20.0 * 30.0 }
     , { label = "sushi dinners", perMonth = 0.33 }
     , { label = "concerts", perMonth = 0.08 }
-    ]
+    ] |> Array.fromList
 
-emptyModel : ( Model, Cmd Msg )
-emptyModel =
+type alias Flags = { rand: Int }
+
+init : Flags -> ( Model, Cmd Msg )
+init { rand } =
     --testModel
     --{ onboarded = False, dob = "", death = 0, entries = Array.empty, activeEntry = { entry = { label = "", perMonth = 0.0 }, numleft = "" }} ! []
-    { onboarded = False, dob = "", death = 0, entries = Array.fromList starterEntries, activeEntry = pizzaActiveEntry } ! []
+    let index = rand % (Array.length starterEntries)
+        activeEntry = case Array.get index starterEntries of
+                        Nothing -> Debug.crash("array index access out of bounds")
+                        Just entry -> entry
+    in { onboarded = False, dob = "", death = 0, entries = starterEntries, activeEntry = { entry = activeEntry, numleft = "" } } ! []
 
 type Msg
     = NoOp
@@ -150,7 +155,7 @@ viewOnboarded { onboarded, death, entries, activeEntry } =
         back = case List.head (List.drop 1 split) of
                     Nothing -> ""
                     Just i -> i
-        paddedback = pad0 back
+        paddedback = zeroPad 9 back
     in div [ id "app" ]
         [ h2 [ class "count" ]
             [ text front
@@ -159,10 +164,10 @@ viewOnboarded { onboarded, death, entries, activeEntry } =
         , h1 [ class "label" ] [ text (String.toUpper entry.label) ]
         ]
 
-pad0 : String -> String
-pad0 cur =
-    if String.length cur < 8 then
-        let newcur = cur ++ "0"
-        in pad0 newcur
+zeroPad : Int -> String -> String
+zeroPad numZeros str =
+    if String.length str < numZeros then
+        let paddedStr = str ++ "0"
+        in zeroPad numZeros paddedStr
     else
-        cur
+        str

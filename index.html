@@ -1,0 +1,27 @@
+<!-- Blatantly stolen from the elm todo-mvc example -->
+<!-- https://github.com/evancz/elm-todomvc/blob/master/index.html -->
+
+<!DOCTYPE HTML>
+<html>
+
+<head>
+  <meta charset="UTF-8">
+  <title>New Tab</title>
+  <script type="text/javascript" src="elm.js"></script>
+  <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+</body>
+
+<script type="text/javascript">
+//var storedState = localStorage.getItem('elm-stimulus-save');
+//var startingState = storedState ? JSON.parse(storedState) : null;
+//var todomvc = Elm.Todo.fullscreen(startingState);
+var stimulus = Elm.Stimulus.fullscreen({ rand: Math.floor( Math.random() * 100 ) });
+//todomvc.ports.setStorage.subscribe(function(state) {
+//    localStorage.setItem('elm-todo-save', JSON.stringify(state));
+//});
+</script>
+
+</html>
