@@ -3,8 +3,9 @@ module Stimulus exposing (..)
 import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.App as App
+import Html.Events exposing (onClick, onInput)
+import Date exposing (Date)
 import Time exposing (Time, millisecond)
-import Time.DateTime as DateTime exposing (zero)
 import String
 import Array exposing (Array)
 
@@ -18,14 +19,16 @@ main =
         }
 
 type alias Model =
-    { death : Int
+    { onboarded: Bool
+    , dob: String
+    , death : Int
     , entries: Array Entry
     , activeEntry: ActiveEntry
     }
 
 type alias Entry =
     { label : String
-    , perMonth : Int
+    , perMonth : Float
     }
 
 type alias ActiveEntry =
@@ -37,28 +40,45 @@ subscriptions: Model -> Sub Msg
 subscriptions model =
     Time.every 80 Tick
 
-calculateDeath : DateTime.DateTime -> Int
+calculateDeath : Date -> Int
 calculateDeath dob =
-    let dobMilli = Time.inMilliseconds (DateTime.toTimestamp dob)
+    let dobMilli = Date.toTime dob
     in (round dobMilli + 2524556160000)
 
 pizzaEntry =
-    { label = "pizzas left",  perMonth = 3 }
+    { label = "pizzas left",  perMonth = 1.0 }
 pizzaActiveEntry =
     { entry = pizzaEntry,  numleft = "" }
 chrisDob =
-    DateTime.dateTime { zero | year = 1996, month = 7, day = 11 }
+    case Date.fromString "07-01-1996" of
+        Ok date -> date
+        Err msg -> Debug.crash("no :(")
 testModel =
-    { death = calculateDeath chrisDob, entries = Array.fromList [ pizzaEntry ], activeEntry = pizzaActiveEntry } ! []
+    { onboarded = True, dob = "02-04-1996", death = calculateDeath chrisDob, entries = Array.fromList [ pizzaEntry ], activeEntry = pizzaActiveEntry } ! []
+
+starterEntries =
+    [ { label = "pizzas", perMonth = 0.6 }
+    , { label = "phone calls home", perMonth = 2.2}
+    , { label = "bobas", perMonth = 7 }
+    , { label = "movies", perMonth = 0.3 }
+    , { label = "visits home", perMonth = 0.2 }
+    , { label = "sodas", perMonth = 4.0 }
+    , { label = "emails", perMonth = 20.0 * 30.0 }
+    , { label = "sushi dinners", perMonth = 0.33 }
+    , { label = "concerts", perMonth = 0.08 }
+    ]
 
 emptyModel : ( Model, Cmd Msg )
 emptyModel =
-    testModel
-    --{ death = 0, entries = Array.empty, currentEntry = { entry = {"", 0 }, numleft = "" }} ! []
+    --testModel
+    --{ onboarded = False, dob = "", death = 0, entries = Array.empty, activeEntry = { entry = { label = "", perMonth = 0.0 }, numleft = "" }} ! []
+    { onboarded = False, dob = "", death = 0, entries = Array.fromList starterEntries, activeEntry = pizzaActiveEntry } ! []
 
 type Msg
     = NoOp
     | Tick Time
+    | DobChange String
+    | Submit
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
@@ -67,17 +87,26 @@ update msg model =
             model ! []
         Tick time ->
             let activeEntry = model.activeEntry
+                asdfsadf = Debug.log "model" model
                 perMonth = activeEntry.entry.perMonth
                 death = model.death
                 numleft = numLeft death perMonth time
                 numleftFormatted = numleft |> toString |> String.dropRight 5
             in { model | activeEntry = { activeEntry | numleft = numleftFormatted } } ! []
+        DobChange dob ->
+            { model | dob = dob } ! []
+        Submit ->
+            let dob = case Date.fromString model.dob of
+                        Ok date -> date
+                        Err msg -> Debug.crash("received a malform string")
+                death = calculateDeath dob
+            in { model | onboarded = True, death = death } ! []
 
-numLeft : Int -> Int -> Time -> Float
+numLeft : Int -> Float -> Time -> Float
 numLeft death perMonth time =
     let millisRemaining = (toFloat death) - Time.inMilliseconds time
         millisInMonth = 2629746000
-    in 1.0 * (toFloat perMonth) / millisInMonth * millisRemaining
+    in 1.0 * perMonth / millisInMonth * millisRemaining
 
 stylesheet = 
     let 
@@ -92,13 +121,29 @@ stylesheet =
         node tag attrs children
 
 view : Model -> Html Msg
-view {death, entries, activeEntry} =
-    let factView = viewEntry activeEntry in
-    div [] [stylesheet, factView]
+view model =
+    let body = 
+        if (not model.onboarded) then
+            viewNotOnboarded model
+        else
+            viewOnboarded model
+    in div [] [stylesheet, body]
 
-viewEntry : ActiveEntry -> Html Msg
-viewEntry {entry, numleft} =
-    let split = String.split "." numleft
+viewNotOnboarded : Model -> Html Msg
+viewNotOnboarded model =
+    div []
+        [ h1 [ id "dob", class "label" ] [ text "When were you born?" ]
+        , footer []
+            [ input [type' "date", name "dob", id "dob", onInput DobChange] []
+            , button [onClick Submit] [text "Motivate"]
+            ]
+        ]
+
+
+viewOnboarded : Model -> Html Msg
+viewOnboarded { onboarded, death, entries, activeEntry } =
+    let { entry, numleft } = activeEntry
+        split = String.split "." numleft
         front = case List.head split of
                     Nothing -> ""
                     Just i -> i
@@ -107,11 +152,11 @@ viewEntry {entry, numleft} =
                     Just i -> i
         paddedback = pad0 back
     in div [ id "app" ]
-        [ h1 [ class "label" ] [ text (String.toUpper entry.label) ]
-        , div [ class "count" ]
+        [ h2 [ class "count" ]
             [ text front
-            , sup [ class "fact_number-back" ] [ text ".", text paddedback ]
+            , sup [] [ text ".", text paddedback ]
             ]
+        , h1 [ class "label" ] [ text (String.toUpper entry.label) ]
         ]
 
 pad0 : String -> String
