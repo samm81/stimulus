@@ -32,7 +32,7 @@ type alias Entry =
 
 type alias ActiveEntry =
     { entry: Entry
-    , numleft: String
+    , numleft: Float
     }
 
 subscriptions: Model -> Sub Msg
@@ -54,11 +54,15 @@ starterEntries =
     , { label = "emails", perMonth = 20.0 * 30.0 }
     , { label = "sushi dinners", perMonth = 0.33 }
     , { label = "concerts", perMonth = 0.08 }
+    , { label = "gym workouts", perMonth = 8.0 }
+    , { label = "glasses of water", perMonth = 3.0 * 30.0 }
+    , { label = "beach trips", perMonth = 0.08 }
+    , { label = "hiking trips", perMonth = 0.11 }
     ] |> Array.fromList
 
 emptyModel : Model
 emptyModel =
-    { onboarded = False, dob = "", death = 0, entries = starterEntries, activeEntry = { entry = { label = "", perMonth = 0.0 }, numleft = "" } }
+    { onboarded = False, dob = "", death = 0, entries = starterEntries, activeEntry = { entry = { label = "", perMonth = 0.0 }, numleft = 0.0 } }
 
 type alias Flags = { rand: Int, savedModel: Maybe Model }
 init : Flags -> ( Model, Cmd Msg )
@@ -68,7 +72,7 @@ init { rand, savedModel } =
         activeEntry = case Array.get index model.entries of
                         Nothing -> Debug.crash("array index access out of bounds")
                         Just entry -> entry
-    in { model | activeEntry = { entry = activeEntry, numleft = "" } } ! []
+    in { model | activeEntry = { entry = activeEntry, numleft = 0.0 } } ! []
 
 type Msg
     = NoOp
@@ -98,8 +102,7 @@ update msg model =
                 perMonth = activeEntry.entry.perMonth
                 death = model.death
                 numleft = numLeft death perMonth time
-                numleftFormatted = numleft |> toString |> String.dropRight 5
-            in { model | activeEntry = { activeEntry | numleft = numleftFormatted } } ! []
+            in { model | activeEntry = { activeEntry | numleft = numleft } } ! []
         DobChange dob ->
             { model | dob = dob } ! []
         Submit ->
@@ -115,8 +118,8 @@ numLeft death perMonth time =
         millisInMonth = 2629746000
     in 1.0 * perMonth / millisInMonth * millisRemaining
 
-stylesheet = 
-    let 
+stylesheet =
+    let
         tag = "link"
         attrs =
             [ attribute "rel"       "stylesheet"
@@ -129,7 +132,7 @@ stylesheet =
 
 view : Model -> Html Msg
 view model =
-    let body = 
+    let body =
         if (not model.onboarded) then
             viewNotOnboarded model
         else
@@ -150,14 +153,15 @@ viewNotOnboarded model =
 viewOnboarded : Model -> Html Msg
 viewOnboarded { onboarded, death, entries, activeEntry } =
     let { entry, numleft } = activeEntry
-        split = String.split "." numleft
+        split = String.split "." (toString numleft)
         front = case List.head split of
                     Nothing -> ""
                     Just i -> i
         back = case List.head (List.drop 1 split) of
                     Nothing -> ""
                     Just i -> i
-        paddedback = zeroPad 9 back
+        backlength = 9
+        paddedback = back |> stringTruncate backlength |> zeroPad backlength
     in div [ id "app" ]
         [ h2 [ class "count" ]
             [ text front
@@ -166,6 +170,10 @@ viewOnboarded { onboarded, death, entries, activeEntry } =
         , h1 [ class "label" ] [ text (String.toUpper entry.label) ]
         ]
 
+stringTruncate : Int -> String -> String
+stringTruncate length str =
+    String.dropRight (Basics.max 0 (String.length str - length)) str
+
 zeroPad : Int -> String -> String
 zeroPad numZeros str =
     if String.length str < numZeros then
@@ -173,14 +181,3 @@ zeroPad numZeros str =
         in zeroPad numZeros paddedStr
     else
         str
-
-pizzaEntry =
-    { label = "pizzas left",  perMonth = 1.0 }
-pizzaActiveEntry =
-    { entry = pizzaEntry,  numleft = "" }
-chrisDob =
-    case Date.fromString "07-01-1996" of
-        Ok date -> date
-        Err msg -> Debug.crash("no :(")
-testModel =
-    { onboarded = True, dob = "02-04-1996", death = calculateDeath chrisDob, entries = Array.fromList [ pizzaEntry ], activeEntry = pizzaActiveEntry } ! []
