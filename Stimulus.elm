@@ -114,7 +114,7 @@ update msg model =
 
 numLeft : Int -> Float -> Time -> Float
 numLeft death perMonth time =
-    let millisRemaining = (toFloat death) - Time.inMilliseconds time
+    let millisRemaining = Basics.max 0 ((toFloat death) - Time.inMilliseconds time)
         millisInMonth = 2629746000
     in 1.0 * perMonth / millisInMonth * millisRemaining
 
