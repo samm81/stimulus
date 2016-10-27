@@ -51,6 +51,14 @@ body, input {
   margin-left: 7px;
 }
 
+.outro {
+  margin: 0 0 0 2px;
+  margin-top: 4px;
+  line-height: 1.1;
+  font-size: 18px;
+  color: #bdbdbd;
+}
+
 label {
   display: block;
 }
@@ -87,4 +95,13 @@ footer {
   display: -webkit-flex;
   -webkit-flex-direction: row;
   -webkit-justify-content: center;
+}
+
+.footer {
+  line-height: 1.1;
+  font-size: 18px;
+  color: #bdbdbd;
+
+  position: absolute;
+  bottom: 8px;
 }

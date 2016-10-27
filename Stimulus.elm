@@ -25,9 +25,14 @@ type alias Model =
     , activeEntry: ActiveEntry
     }
 
+type Unit = Day | Week | Month | Year
+
 type alias Entry =
     { label : String
-    , perMonth : Float
+    , outro: String
+    , rate : Float
+    --, unit: Unit  ** Elm can't port non-concrete types, so we have to use a string instead
+    , unit: String
     }
 
 type alias ActiveEntry =
@@ -39,30 +44,41 @@ subscriptions: Model -> Sub Msg
 subscriptions model =
     Time.every 80 Tick
 
+eightyYearsInMillis =
+    1000 * 60 * 60 * 24 * 365 * 80
+
+unitToMillis unit =
+    case unit of
+        "Day" -> 1000 * 60 * 60 * 24
+        "Week" -> 1000 * 60 * 60 * 24 * 7
+        "Month" -> 1000 * 60 * 60 * 24 * 30
+        "Year" -> 1000 * 60 * 60 * 24 * 365
+        _ -> 0
+
 calculateDeath : Date -> Int
 calculateDeath dob =
     let dobMilli = Date.toTime dob
-    in (round dobMilli + 2524556160000)
+    in (round dobMilli + eightyYearsInMillis)
 
 starterEntries =
-    [ { label = "pizzas", perMonth = 0.6 }
-    , { label = "phone calls home", perMonth = 2.2}
-    , { label = "bobas", perMonth = 7 }
-    , { label = "movies", perMonth = 0.3 }
-    , { label = "visits home", perMonth = 0.2 }
-    , { label = "sodas", perMonth = 4.0 }
-    , { label = "emails", perMonth = 20.0 * 30.0 }
-    , { label = "sushi dinners", perMonth = 0.33 }
-    , { label = "concerts", perMonth = 0.08 }
-    , { label = "gym workouts", perMonth = 8.0 }
-    , { label = "glasses of water", perMonth = 3.0 * 30.0 }
-    , { label = "beach trips", perMonth = 0.08 }
-    , { label = "hiking trips", perMonth = 0.11 }
+    [ { label = "full pizzas", outro = "left to eat", rate = 7, unit = "Month" }
+    , { label = "phone calls home", outro = "left to make", rate = 2.2, unit = "Month" }
+    --, { label = "bobas", outro = "left to drink", rate = 7, unit = "Month" }
+    , { label = "movies in theater", outro = "left to watch", rate = 4, unit = "Year" }
+    , { label = "visits home", outro = "left to make", rate = 2, unit = "Year" }
+    , { label = "sodas", outro = "left to drink", rate = 1, unit = "Week" }
+    , { label = "emails", outro = "left to read", rate = 20, unit = "Day" }
+    , { label = "sushi dinners", outro = "left to eat", rate = 4, unit = "Year" }
+    , { label = "concerts", outro = "left to attend", rate = 1, unit = "Year" }
+    , { label = "gym workouts", outro = "left", rate = 2, unit = "Week" }
+    , { label = "glasses of water", outro = "left to drink", rate = 3, unit = "Day" }
+    , { label = "beach trips", outro = "left to take", rate = 1, unit = "Year" }
+    , { label = "hiking trips", outro = "left to take", rate = 2, unit = "Year" }
     ] |> Array.fromList
 
 emptyModel : Model
 emptyModel =
-    { onboarded = False, dob = "", death = 0, entries = starterEntries, activeEntry = { entry = { label = "", perMonth = 0.0 }, numleft = 0.0 } }
+    { onboarded = False, dob = "", death = 0, entries = starterEntries, activeEntry = { entry = { label = "", outro = "", rate = 0, unit = "Year" }, numleft = 0.0 } }
 
 type alias Flags = { rand: Int, savedModel: Maybe Model }
 init : Flags -> ( Model, Cmd Msg )
@@ -99,9 +115,7 @@ update msg model =
             model ! []
         Tick time ->
             let activeEntry = model.activeEntry
-                perMonth = activeEntry.entry.perMonth
-                death = model.death
-                numleft = numLeft death perMonth time
+                numleft = numLeft model.death activeEntry.entry time
             in { model | activeEntry = { activeEntry | numleft = numleft } } ! []
         DobChange dob ->
             { model | dob = dob } ! []
@@ -112,32 +126,20 @@ update msg model =
                 death = calculateDeath dob
             in { model | onboarded = True, death = death } ! []
 
-numLeft : Int -> Float -> Time -> Float
-numLeft death perMonth time =
+numLeft : Int -> Entry -> Time -> Float
+numLeft death { label, outro, rate, unit } time =
     let millisRemaining = Basics.max 0 ((toFloat death) - Time.inMilliseconds time)
-        millisInMonth = 2629746000
-    in 1.0 * perMonth / millisInMonth * millisRemaining
-
-stylesheet =
-    let
-        tag = "link"
-        attrs =
-            [ attribute "rel"       "stylesheet"
-            , attribute "property"  "stylesheet"
-            , attribute "href"      "style.css"
-            ]
-        children = []
-    in
-        node tag attrs children
+        unitMillis = unitToMillis unit
+        unitsLeft = millisRemaining / unitMillis
+        numleft = rate * unitsLeft
+    in numleft
 
 view : Model -> Html Msg
 view model =
-    let body =
-        if (not model.onboarded) then
-            viewNotOnboarded model
-        else
-            viewOnboarded model
-    in div [] [stylesheet, body]
+    if (not model.onboarded) then
+        viewNotOnboarded model
+    else
+        viewOnboarded model
 
 viewNotOnboarded : Model -> Html Msg
 viewNotOnboarded model =
@@ -149,25 +151,30 @@ viewNotOnboarded model =
             ]
         ]
 
-
 viewOnboarded : Model -> Html Msg
 viewOnboarded { onboarded, death, entries, activeEntry } =
     let { entry, numleft } = activeEntry
         split = String.split "." (toString numleft)
-        front = case List.head split of
-                    Nothing -> ""
-                    Just i -> i
+        front = unsafeHead split "head of numleft string is nothing"
         back = case List.head (List.drop 1 split) of
-                    Nothing -> ""
-                    Just i -> i
+                Just s -> s
+                Nothing -> "0"
         backlength = 9
         paddedback = back |> stringTruncate backlength |> zeroPad backlength
-    in div [ id "app" ]
-        [ h2 [ class "count" ]
-            [ text front
-            , sup [] [ text ".", text paddedback ]
+        rate = entry.rate |> toString
+        unit = entry.unit |> String.toLower
+    in body []
+        [ div [ id "app" ]
+            [ h2 [ class "count" ] [ text front
+                                   , sup [] [ text ".", text paddedback ]
+                                   ]
+            , h1 [ class "label" ] [ text (String.toUpper entry.label) ]
+            , h3 [ class "outro" ] [ text (String.toLower entry.outro) ]
             ]
-        , h1 [ class "label" ] [ text (String.toUpper entry.label) ]
+        , div [ class "footer" ] [ span [] [ text "* " ]
+                    , span [] [ text "based on a projected death at age 80" ]
+                    , span [] [ text (" and a rate of ~" ++ rate ++ " per " ++ unit) ]
+                    ]
         ]
 
 stringTruncate : Int -> String -> String
@@ -181,3 +188,9 @@ zeroPad numZeros str =
         in zeroPad numZeros paddedStr
     else
         str
+
+unsafeHead : List a -> String -> a
+unsafeHead list error =
+    case List.head list of
+        Just i -> i
+        Nothing -> Debug.crash(error)
