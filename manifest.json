@@ -1,7 +1,7 @@
 {
     "name": "Stimulus",
     "description": "New tab page to motivate you to take advantage of life's fleeting opportunities",
-    "version": "0.0.1",
+    "version": "0.0.2",
     "manifest_version": 2,
     "permissions" : [],
     "chrome_url_overrides" : {
