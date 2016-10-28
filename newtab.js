@@ -5,3 +5,10 @@ var stimulus = Elm.Stimulus.fullscreen(startingState);
 stimulus.ports.setStorage.subscribe(function(model) {
     localStorage.setItem('elm-stimulus-save', JSON.stringify(model));
 });
+
+chrome.runtime.onInstalled.addListener( function (details) {
+    console.log(details);
+    if (details.reason == "update" ) {
+        localStorage.clear();
+    }
+});
