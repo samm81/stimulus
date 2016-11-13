@@ -63,7 +63,7 @@ calculateDeath dob =
 starterEntries =
     [ { label = "full pizzas", outro = "left to eat", rate = 7, unit = "Month" }
     , { label = "phone calls home", outro = "left to make", rate = 2.2, unit = "Month" }
-    --, { label = "bobas", outro = "left to drink", rate = 7, unit = "Month" }
+    , { label = "bobas", outro = "left to drink", rate = 7, unit = "Month" }
     , { label = "movies in theater", outro = "left to watch", rate = 4, unit = "Year" }
     , { label = "visits home", outro = "left to make", rate = 2, unit = "Year" }
     , { label = "sodas", outro = "left to drink", rate = 1, unit = "Week" }
@@ -80,15 +80,16 @@ emptyModel : Model
 emptyModel =
     { onboarded = False, dob = "", death = 0, entries = starterEntries, activeEntry = { entry = { label = "", outro = "", rate = 0, unit = "Year" }, numleft = 0.0 } }
 
-type alias Flags = { rand: Int, savedModel: Maybe Model }
+type alias Flags = { rand: Int, time: Time, savedModel: Maybe Model }
 init : Flags -> ( Model, Cmd Msg )
-init { rand, savedModel } =
+init { rand, time, savedModel } =
     let model = Maybe.withDefault emptyModel savedModel
         index = rand % (Array.length model.entries)
         activeEntry = case Array.get index model.entries of
                         Nothing -> Debug.crash("array index access out of bounds")
                         Just entry -> entry
-    in { model | activeEntry = { entry = activeEntry, numleft = 0.0 } } ! []
+        numleft = numLeft model.death activeEntry time
+    in { model | activeEntry = { entry = activeEntry, numleft = numleft } } ! []
 
 type Msg
     = NoOp

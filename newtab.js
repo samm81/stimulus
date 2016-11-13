@@ -9,8 +9,7 @@ var startingModel = storedModel ? JSON.parse(storedModel) : null;
 if (startingModel !== null && !objectEquals(startingModel, sampleModel)) { // short circuit if model is already null
     startingModel = null;
 }
-var startingState = { rand: Math.floor( Math.random() * 100000 ), savedModel: startingModel }
-var nullStartingState = { rand: Math.floor( Math.random() * 100000 ), savedModel: null }
+var startingState = { rand: Math.floor( Math.random() * 100000 ), time: (new Date()).getTime(), savedModel: startingModel }
 
 var stimulus = Elm.Stimulus.fullscreen(startingState);
 
