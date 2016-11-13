@@ -105,3 +105,12 @@ footer {
   position: absolute;
   bottom: 8px;
 }
+
+.error {
+  color: #C00;
+}
+
+.error.body {
+  width: 420px;
+  visibility: hidden;
+}
