@@ -112,5 +112,5 @@ footer {
 
 .error.body {
   width: 420px;
-  visibility: hidden;
+  display: none;
 }

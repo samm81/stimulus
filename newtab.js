@@ -24,5 +24,5 @@ if (stimulus !== null) {
         }
     });
 } else {
-    document.getElementsByClassName("error body")[0].style.visibility = "visible";
+    document.getElementsByClassName("error body")[0].style.display = "block";
 }
