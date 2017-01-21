@@ -3,11 +3,15 @@ port module Stimulus exposing (..)
 import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.App as App
-import Html.Events exposing (onClick, onInput)
+import Html.Events exposing (onClick, onInput, on)
 import Date exposing (Date)
 import Time exposing (Time, millisecond)
 import String
 import Array exposing (Array)
+
+import Json.Decode
+import Mouse exposing (Position)
+import Round exposing (round)
 
 main =
     App.programWithFlags
@@ -23,6 +27,12 @@ type alias Model =
     , death : Int
     , entries: Array Entry
     , activeEntry: ActiveEntry
+    , drag: Maybe Drag
+    }
+
+type alias Drag =
+    { start: Position
+    , current: Position
     }
 
 type Unit = Day | Week | Month | Year
@@ -40,10 +50,6 @@ type alias ActiveEntry =
     , numleft: Float
     }
 
-subscriptions: Model -> Sub Msg
-subscriptions model =
-    Time.every 80 Tick
-
 eightyYearsInMillis =
     1000 * 60 * 60 * 24 * 365 * 80
 
@@ -58,44 +64,67 @@ unitToMillis unit =
 calculateDeath : Date -> Int
 calculateDeath dob =
     let dobMilli = Date.toTime dob
-    in (round dobMilli + eightyYearsInMillis)
+    in (Basics.round dobMilli + eightyYearsInMillis)
 
 starterEntries =
-    [ { label = "full pizzas", outro = "left to eat", rate = 7, unit = "Month" }
-    , { label = "phone calls home", outro = "left to make", rate = 2.2, unit = "Month" }
-    , { label = "bobas", outro = "left to drink", rate = 7, unit = "Month" }
-    , { label = "movies in theater", outro = "left to watch", rate = 4, unit = "Year" }
-    , { label = "visits home", outro = "left to make", rate = 2, unit = "Year" }
-    , { label = "sodas", outro = "left to drink", rate = 1, unit = "Week" }
-    , { label = "emails", outro = "left to read", rate = 20, unit = "Day" }
-    , { label = "sushi dinners", outro = "left to eat", rate = 4, unit = "Year" }
-    , { label = "concerts", outro = "left to attend", rate = 1, unit = "Year" }
-    , { label = "gym workouts", outro = "left", rate = 2, unit = "Week" }
-    , { label = "glasses of water", outro = "left to drink", rate = 3, unit = "Day" }
-    , { label = "beach trips", outro = "left to take", rate = 1, unit = "Year" }
-    , { label = "hiking trips", outro = "left to take", rate = 2, unit = "Year" }
+    [ ( Entry "full pizzas" "left to eat" 7 "Month" )
+    , ( Entry "phone calls home" "left to make" 2.2 "Month" )
+    , ( Entry "bobas" "left to drink" 7 "Month" )
+    , ( Entry "movies in theater" "left to watch" 4 "Year" )
+    , ( Entry "visits home" "left to make" 2 "Year" )
+    , ( Entry "sodas" "left to drink" 1 "Week" )
+    , ( Entry "emails" "left to read" 20 "Day" )
+    , ( Entry "sushi dinners" "left to eat" 4 "Year" )
+    , ( Entry "concerts" "left to attend" 1 "Year" )
+    , ( Entry "gym workouts" "left" 2 "Week" )
+    , ( Entry "glasses of water" "left to drink" 3 "Day" )
+    , ( Entry "beach trips" "left to take" 1 "Year" )
+    , ( Entry "hiking trips" "left to take" 2 "Year" )
+    , ( Entry "hours to sleep" "" 7 "Day" )
+    , ( Entry "elections" "to vote in" 0.25 "Year" )
+    , ( Entry "books" "left to read" 10 "Year" )
+    , ( Entry "meals" "left to cook" 5 "Week" )
+    , ( Entry "videogames" "left to complete" 2 "Year" )
+    , ( Entry "board games" "left to play" 5 "Month" )
+    , ( Entry "times to check facebook" "" 2 "Day" )
+    , ( Entry "museums" "left to visit" 2 "Year" )
+    , ( Entry "thanksgivings" "left to have" 1 "Year" )
+    , ( Entry "christmases" "left to have" 1 "Year" )
+    , ( Entry "halloweens" "left to have" 1 "Year" )
+    , ( Entry "trips abroad" "left to take" 1 "Year" )
     ] |> Array.fromList
+
+noMoreEntriesEntry =
+    ( Entry "you have no non-zero entries!" "" -0.000000000001 "Year" ) -- the tiny negative number is to trick the warning into not appearing
 
 emptyModel : Model
 emptyModel =
-    { onboarded = False, dob = "", death = 0, entries = starterEntries, activeEntry = { entry = { label = "", outro = "", rate = 0, unit = "Year" }, numleft = 0.0 } }
+    (Model False "" 0 starterEntries (ActiveEntry (Entry "" "" 0 "Year") 0.0) Nothing)
 
 type alias Flags = { rand: Int, time: Time, savedModel: Maybe Model }
 init : Flags -> ( Model, Cmd Msg )
 init { rand, time, savedModel } =
     let model = Maybe.withDefault emptyModel savedModel
-        index = rand % (Array.length model.entries)
-        activeEntry = case Array.get index model.entries of
+        validEntries = Array.filter (\entry -> entry.rate /= 0) model.entries
+        numValidEntries = (Array.length validEntries)
+        activeEntry =
+            case numValidEntries of
+                0 -> noMoreEntriesEntry
+                _ -> case Array.get (rand % numValidEntries) validEntries of
                         Nothing -> Debug.crash("array index access out of bounds")
                         Just entry -> entry
         numleft = numLeft model.death activeEntry time
     in { model | activeEntry = { entry = activeEntry, numleft = numleft } } ! []
 
+-- UPDATE
+
 type Msg
-    = NoOp
-    | Tick Time
+    = Tick Time
     | DobChange String
     | Submit
+    | DragStart Position
+    | DragAt Position
+    | DragEnd Position
 
 port setStorage : Model -> Cmd msg
 
@@ -105,27 +134,48 @@ updateWithStorage msg model =
         ( newModel, cmds ) =
             update msg model
     in
-        ( newModel
-        , Cmd.batch [ setStorage newModel, cmds ]
-        )
+        ( newModel , Cmd.batch [ setStorage newModel, cmds ] )
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
+    ( updateHelp msg model, Cmd.none )
+
+updateHelp : Msg -> Model -> Model
+updateHelp msg model =
     case msg of
-        NoOp ->
-            model ! []
         Tick time ->
             let activeEntry = model.activeEntry
                 numleft = numLeft model.death activeEntry.entry time
-            in { model | activeEntry = { activeEntry | numleft = numleft } } ! []
+            in { model | activeEntry = { activeEntry | numleft = numleft } }
         DobChange dob ->
-            { model | dob = dob } ! []
+            { model | dob = dob }
         Submit ->
             let dob = case Date.fromString model.dob of
                         Ok date -> date
                         Err msg -> Debug.crash("received a malform string")
                 death = calculateDeath dob
-            in { model | onboarded = True, death = death } ! []
+            in { model | onboarded = True, death = death }
+        DragStart pos ->
+            { model | drag = (Just (Drag pos pos)) }
+        DragAt pos ->
+            let activeEntry = model.activeEntry
+                entry = activeEntry.entry
+                modifier = 0.05
+                adjRateAt = adjustedRate modifier
+                lastPos = (Maybe.withDefault (Drag pos pos) model.drag).current
+                adjRate = adjRateAt entry.rate lastPos pos
+                newActiveEntry = { activeEntry | entry = { entry | rate = adjRate } }
+                newDrag = (Maybe.map (\{start} -> Drag start pos) model.drag)
+            in { model | activeEntry = newActiveEntry, drag = newDrag }
+        DragEnd _ ->
+            let activeEntryName = model.activeEntry.entry.label
+                activeEntryRate = model.activeEntry.entry.rate
+                updateEntry entry =
+                    if entry.label == activeEntryName then
+                       { entry | rate = activeEntryRate }
+                    else
+                        entry
+            in { model | drag = Nothing, entries = Array.map updateEntry model.entries }
 
 numLeft : Int -> Entry -> Time -> Float
 numLeft death { label, outro, rate, unit } time =
@@ -134,6 +184,32 @@ numLeft death { label, outro, rate, unit } time =
         unitsLeft = millisRemaining / unitMillis
         numleft = rate * unitsLeft
     in numleft
+
+adjustedRate: Float -> Float -> Position -> Position -> Float
+adjustedRate adjustPerPixel currentRate lastPos currentPos =
+    let dist = currentPos.x - lastPos.x
+        delta = (toFloat dist) * adjustPerPixel
+        newRate = Basics.max (currentRate + delta) 0
+        newRateRounded = Round.roundNum 1 newRate
+    in newRateRounded
+
+-- SUBSCRIPTIONS
+
+subscriptions : Model -> Sub Msg
+subscriptions model =
+    Sub.batch [ (tickSubscription model), (mouseSubscription model) ]
+
+tickSubscription model =
+    Time.every 80 Tick
+
+mouseSubscription model =
+    case model.drag of
+        Nothing ->
+            Sub.none
+        Just _ ->
+            Sub.batch [ Mouse.moves DragAt, Mouse.ups DragEnd ]
+
+-- VIEW
 
 view : Model -> Html Msg
 view model =
@@ -153,42 +229,39 @@ viewNotOnboarded model =
         ]
 
 viewOnboarded : Model -> Html Msg
-viewOnboarded { onboarded, death, entries, activeEntry } =
+viewOnboarded ({ onboarded, death, entries, activeEntry } as model) =
     let { entry, numleft } = activeEntry
-        split = String.split "." (toString numleft)
+        numleftRounded = (Round.round 9 numleft)
+        split = String.split "." numleftRounded
         front = unsafeHead split "head of numleft string is nothing"
         back = case List.head (List.drop 1 split) of
                 Just s -> s
                 Nothing -> "0"
-        backlength = 9
-        paddedback = back |> stringTruncate backlength |> zeroPad backlength
-        rate = entry.rate |> toString
+        rate = entry.rate |> Round.round 1
         unit = entry.unit |> String.toLower
+        warningClass = if entry.rate == 0 then "warning" else "invisible"
     in body []
         [ div [ id "app" ]
-            [ h2 [ class "count" ] [ text front
-                                   , sup [] [ text ".", text paddedback ]
+            [ h4 [ class warningClass ] [ text "THIS ENTRY WILL NO LONGER APPEAR" ]
+            , h2 [ class "count" ] [ text front
+                                   , sup [] [ text ".", text back ]
                                    ]
             , h1 [ class "label" ] [ text (String.toUpper entry.label) ]
             , h3 [ class "outro" ] [ text (String.toLower entry.outro) ]
             ]
-        , div [ class "footer" ] [ span [] [ text "* " ]
-                    , span [] [ text "based on a projected death at age 80" ]
-                    , span [] [ text (" and a rate of ~" ++ rate ++ " per " ++ unit) ]
-                    ]
+        , div [ class "footer" ]
+            [ span [] [ text "* " ]
+            , span [] [ text "based on a projected death at age 80" ]
+            , span [] [ text " and a rate of " ]
+            , span [ onMouseDown, class "rate" ] [ text ("~" ++ rate) ]
+            , span [] [ text " per " ]
+            , span [ class "unit" ] [ text unit ]
+            ]
         ]
 
-stringTruncate : Int -> String -> String
-stringTruncate length str =
-    String.dropRight (Basics.max 0 (String.length str - length)) str
-
-zeroPad : Int -> String -> String
-zeroPad numZeros str =
-    if String.length str < numZeros then
-        let paddedStr = str ++ "0"
-        in zeroPad numZeros paddedStr
-    else
-        str
+onMouseDown : Attribute Msg
+onMouseDown =
+    on "mousedown" (Json.Decode.map DragStart Mouse.position)
 
 unsafeHead : List a -> String -> a
 unsafeHead list error =

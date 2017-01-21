@@ -114,3 +114,16 @@ footer {
   width: 420px;
   display: none;
 }
+
+.rate {
+  border-bottom: 1px dotted;
+}
+
+.invisible {
+  visibility: hidden;
+}
+
+.warning {
+  color: #f10;
+  margin: 0px;
+}
