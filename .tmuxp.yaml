@@ -1,0 +1,13 @@
+session_name: stimulus
+start_directory: /home/sam/stimulus
+windows:
+- panes:
+  - shell_command: vim -S Session.vim
+    focus: true
+  - shell_command: echo 'Stimulus.elm' | entr -c -p sh -c 'elm-make Stimulus.elm --output elm.js'
+  layout: main-vertical
+  focus: true
+- panes:
+  - elm-repl
+  - git status
+  layout: main-vertical
